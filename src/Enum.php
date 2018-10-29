@@ -190,6 +190,14 @@ abstract class Enum implements JsonSerializable
     }
 
     /**
+     * Data properties cannot be set on instances - must be in definitions
+     */
+    public function __set($key, $value)
+    {
+        throw new \Exception("Cannot set data on Enum instance");
+    }
+
+    /**
      * Unrecognised properties are assumed to be found in the member's internal
      * associated data.
      */
@@ -216,9 +224,9 @@ abstract class Enum implements JsonSerializable
      */
     public function toArray() : array
     {
-        $out = $this->data;
-        $out['name'] = $this->name;
-        return $out;
+        return [
+            'name' => $this->name,
+        ] + $this->data;
     }
 
     /**
