@@ -19,7 +19,7 @@ abstract class Enum implements JsonSerializable
      * Should return an array where keys correspond to the 'name' of each
      * member, and values should be arrays containing the 'data' of each member
      */
-    abstract public static function definitions() : array
+    abstract public static function definitions() : array;
 
     /**
      * Cache loaded Enums for performance

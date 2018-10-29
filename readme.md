@@ -11,7 +11,7 @@ You can define any other methods you like in the class - in the example below, t
 Note that the constructor method is protected - instances of the Enum class should not be created directly.
 
 ```
-class ShippingMethod extends \MadisonSolutions\Enum
+class ShippingMethod extends \MadisonSolutions\Enum\Enum
 {
     public static function definitions() : array
     {
@@ -54,7 +54,7 @@ foreach (ShippingMethods::members() as $method) {
 #### Get a subset of the members
 
 ```
-$freeMethods = ShippingMethods::subset(function($method) {
+$freeMethods = ShippingMethods::subset(function ($method) {
     return $method->fixed_charge === 0 && $method->charge_per_kg === 0;
 });
 ```
