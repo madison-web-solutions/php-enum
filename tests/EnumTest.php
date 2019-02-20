@@ -40,6 +40,39 @@ class Vegetable extends Enum
     }
 }
 
+class EmptyStringTestEnum extends Enum
+{
+    public static function definitions() : array {
+        return [
+            '' => [
+                'type' => 'Empty String',
+            ],
+        ];
+    }
+}
+
+class NullKeyTestEnum extends Enum
+{
+    public static function definitions() : array {
+        return [
+            null => [
+                'type' => 'Null',
+            ],
+        ];
+    }
+}
+
+class IntegerKeyTestEnum extends Enum
+{
+    public static function definitions() : array {
+        return [
+            0 => [
+                'label' => 'Zero',
+            ],
+        ];
+    }
+}
+
 class EnumTest extends TestCase
 {
     public function assertThrows($expectedExceptionClass, $callback, string $msg = '')
@@ -65,6 +98,8 @@ class EnumTest extends TestCase
         $apple = Fruit::named('apple');
         $this->assertInstanceOf(Fruit::class, $apple);
         $this->assertSame('apple', $apple->name);
+        $apple1 = Fruit::maybeNamed('apple');
+        $this->assertSame($apple, $apple1);
     }
 
     public function testCannotDirectlyCreateInstance()
@@ -148,6 +183,8 @@ class EnumTest extends TestCase
             $dummy = Fruit::named('dummy');
         });
         $this->assertNull(Fruit::maybeNamed('dummy'));
+        $this->assertFalse(Fruit::has(null));
+        $this->assertNull(Fruit::maybeNamed(null));
     }
 
     public function testNameOfMethodWorks()
@@ -187,5 +224,45 @@ class EnumTest extends TestCase
         $this->assertSame('apple', (string) $apple);
         $this->assertSame($array, $apple->toArray());
         $this->assertSame(json_encode($array), json_encode($apple));
+    }
+
+    public function testCannotCreateEnumWithEmptyName()
+    {
+        $this->assertThrows(\Exception::class, function () {
+            EmptyStringTestEnum::members();
+        });
+        $this->assertThrows(\Exception::class, function () {
+            NullKeyTestEnum::members();
+        });
+    }
+
+    public function testIntegerKeyBehaviour()
+    {
+        // Enum names are always strings, so even though the definition used an
+        // integer, we should be able to access it via the string
+        $this->assertTrue(IntegerKeyTestEnum::has('0'));
+        $zero = IntegerKeyTestEnum::named('0');
+        $this->assertInstanceOf(IntegerKeyTestEnum::class, $zero);
+        $this->assertSame('Zero', $zero->label);
+        $this->assertSame('0', $zero->name);
+        // named() and has() only accept a string argument, however non-strict
+        // typing in this file means we should be able to pass float or integer
+        // zero and it will be converted to string '0'
+        $this->assertTrue(IntegerKeyTestEnum::has(0));
+        $this->assertSame($zero, IntegerKeyTestEnum::named(0));
+        $this->assertTrue(IntegerKeyTestEnum::has(0.0));
+        $this->assertSame($zero, IntegerKeyTestEnum::named(0.0));
+        // nameOf should work with all representations
+        $this->assertSame('0', IntegerKeyTestEnum::nameOf($zero));
+        $this->assertSame('0', IntegerKeyTestEnum::nameOf('0'));
+        $this->assertSame('0', IntegerKeyTestEnum::nameOf(0));
+        $this->assertSame('0', IntegerKeyTestEnum::nameOf(0.0));
+        // Make sure that zero isn't matching against other falsey values
+        $this->assertFalse(IntegerKeyTestEnum::has(''));
+        $this->assertFalse(IntegerKeyTestEnum::has(null));
+        $this->assertFalse(IntegerKeyTestEnum::has(false));
+        $this->assertNull(IntegerKeyTestEnum::maybeNamed(''));
+        $this->assertNull(IntegerKeyTestEnum::maybeNamed(null));
+        $this->assertNull(IntegerKeyTestEnum::maybeNamed(false));
     }
 }

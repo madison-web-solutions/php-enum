@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace MadisonSolutions\Enum;
 
@@ -41,7 +42,10 @@ abstract class Enum implements JsonSerializable
         if (! isset(Enum::$cache[$called_class])) {
             Enum::$cache[$called_class] = [];
             foreach (static::definitions() as $name => $data) {
-                Enum::$cache[$called_class][$name] = new static($name, $data);
+                if ($name === '') {
+                    throw new \Exception("Cannot create Enum with name = ''");
+                }
+                Enum::$cache[$called_class][$name] = new static((string) $name, $data);
             }
         }
         return Enum::$cache[$called_class];
@@ -65,10 +69,10 @@ abstract class Enum implements JsonSerializable
     /**
      * Determine whether this Enum class has a member with the given name
      *
-     * @param string $name The name to look for
+     * @param ?string $name The name to look for
      * @return bool True if the member exists, False otherwise
      */
-    public static function has(string $name) : bool
+    public static function has(?string $name) : bool
     {
         return array_key_exists($name, static::members());
     }
@@ -96,10 +100,10 @@ abstract class Enum implements JsonSerializable
      * This is similar to named()  except if the member doesn't exists, no
      * Exception is thrown, instead null is returned.
      *
-     * @param string $name The name to look for
+     * @param ?string $name The name to look for
      * @return ?Enum The Enum member, or null
      */
-    public static function maybeNamed(string $name)
+    public static function maybeNamed(?string $name)
     {
         return @static::members()[$name];
     }
@@ -123,6 +127,9 @@ abstract class Enum implements JsonSerializable
     {
         if ($val instanceof static) {
             return $val->name;
+        }
+        if (is_int($val) || is_float($val)) {
+            $val = (string) $val;
         }
         if (is_string($val) && static::has($val)) {
             return $val;
