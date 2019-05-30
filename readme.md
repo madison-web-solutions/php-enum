@@ -8,7 +8,7 @@ Define an Enum by creating a class which extends from  \MadisonSolutions\Enum, a
 
 You can define any other methods you like in the class - in the example below, there's an additional `charge()` method for calculating shipping charges.
 
-Note that the constructor method is protected - instances of the Enum class should not be created directly.
+Note that the constructor method is private - instances of the Enum class cannot be created directly.
 
 ```
 class ShippingMethod extends \MadisonSolutions\Enum\Enum
@@ -81,11 +81,11 @@ if (! $method) {
 #### Compare instances
 
 ```
-if ($method === ShippingMethods::collection()) {
+if ($method == ShippingMethods::collection()) {
     echo "You are collecting in person.";
 }
 // or
-if ($method->name === 'collection') {
+if ($method->name == 'collection') {
     echo "You are collecting in person.";
 }
 // or
@@ -107,6 +107,11 @@ $stringValue = ShippingMethods::nameOf($method);
 // load
 $method = ShippingMethod::maybeNamed($stringValue);
 ```
+
+Alternatively the serialize and unserialize methods can be used, however
+unserialize will throw an UnexpectedValueException if the serialized member no
+longer exists (because for example the definitions were changed between the time
+the data was saved, and when it was restored).
 
 #### Type Hint
 

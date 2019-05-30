@@ -99,23 +99,16 @@ class EnumTest extends TestCase
         $this->assertInstanceOf(Fruit::class, $apple);
         $this->assertSame('apple', $apple->name);
         $apple1 = Fruit::maybeNamed('apple');
-        $this->assertSame($apple, $apple1);
+        $this->assertEquals($apple, $apple1);
+        $this->assertTrue($apple == $apple1);
+        $this->assertFalse($apple === $apple1);
     }
 
     public function testCannotDirectlyCreateInstance()
     {
         $this->assertThrows(\Error::class, function () {
-            $cherry = new Fruit('cherry', ['type' => 'Orchard']);
+            $cherry = new Fruit('cherry');
         });
-    }
-
-    public function testOnlyOneInstanceExistsForEachMember()
-    {
-        $apple1 = Fruit::apple();
-        $apple2 = Fruit::apple();
-        $this->assertSame($apple1, $apple2);
-        $apple3 = Fruit::named('apple');
-        $this->assertSame($apple1, $apple3);
     }
 
     public function testCanAccessMemberData()
@@ -130,11 +123,15 @@ class EnumTest extends TestCase
         $this->assertNull($apple->dummy);
     }
 
-    public function testCannotSetMemberData()
+    public function testCannotSetOrUnsetMemberData()
     {
         $apple = Fruit::named('apple');
         $this->assertThrows(\Exception::class, function () use (&$apple) {
             $apple->type = 'Tree';
+        });
+        $this->assertSame('Orchard', $apple->type);
+        $this->assertThrows(\Exception::class, function () use (&$apple) {
+            unset($apple->type);
         });
         $this->assertSame('Orchard', $apple->type);
     }
@@ -144,18 +141,18 @@ class EnumTest extends TestCase
         $all_fruit = Fruit::members();
         $this->assertInternalType('array', $all_fruit);
         $this->assertCount(4, $all_fruit);
-        $this->assertContains(Fruit::apple(), $all_fruit);
+        $this->assertTrue(in_array(Fruit::apple(), $all_fruit));
         $this->assertArrayHasKey('pear', $all_fruit);
-        $this->assertSame($all_fruit['pear'], Fruit::pear());
+        $this->assertEquals($all_fruit['pear'], Fruit::pear());
 
         $bramble_fruit = Fruit::subset(function ($fruit) {
             return $fruit->type === 'Bramble';
         });
         $this->assertInternalType('array', $bramble_fruit);
         $this->assertCount(1, $bramble_fruit);
-        $this->assertContains(Fruit::raspberry(), $bramble_fruit);
+        $this->assertTrue(in_array(Fruit::raspberry(), $bramble_fruit));
         $this->assertArrayHasKey('raspberry', $bramble_fruit);
-        $this->assertSame($bramble_fruit['raspberry'], Fruit::raspberry());
+        $this->assertEquals($bramble_fruit['raspberry'], Fruit::raspberry());
     }
 
     public function testCanGetRandomFruit()
@@ -173,7 +170,13 @@ class EnumTest extends TestCase
         $this->assertInstanceOf(Vegetable::class, $veg);
         $this->assertNotInstanceOf(Fruit::class, $veg);
         $this->assertSame($fruit->name, $veg->name);
-        $this->assertNotSame($fruit, $veg);
+
+        // Fruit::tomato and Veg::tomato have the same name and data
+        // So their json encoding should be the same, but they should not
+        // compare as equal because they are different Enum classes
+        $this->assertEquals(json_encode($fruit), json_encode($veg));
+        $this->assertNotEquals($fruit, $veg);
+        $this->assertFalse($fruit == $veg);
     }
 
     public function testCannotGetNonMember()
@@ -220,6 +223,18 @@ class EnumTest extends TestCase
     public function testCanSerialize()
     {
         $apple = Fruit::apple();
+        $s = serialize($apple);
+        $apple1 = unserialize($s);
+        $this->assertEquals($apple, $apple);
+        $bad_s = str_replace('apple', 'appie', $s);
+        $this->assertThrows(\UnexpectedValueException::class, function () use ($bad_s) {
+            $apple2 = unserialize($bad_s);
+        });
+    }
+
+    public function testCanJsonSerialize()
+    {
+        $apple = Fruit::apple();
         $array = ['name' => 'apple', 'type' => 'Orchard'];
         $this->assertSame('apple', (string) $apple);
         $this->assertSame($array, $apple->toArray());
@@ -228,10 +243,10 @@ class EnumTest extends TestCase
 
     public function testCannotCreateEnumWithEmptyName()
     {
-        $this->assertThrows(\Exception::class, function () {
+        $this->assertThrows(\UnexpectedValueException::class, function () {
             EmptyStringTestEnum::members();
         });
-        $this->assertThrows(\Exception::class, function () {
+        $this->assertThrows(\UnexpectedValueException::class, function () {
             NullKeyTestEnum::members();
         });
     }
@@ -249,9 +264,9 @@ class EnumTest extends TestCase
         // typing in this file means we should be able to pass float or integer
         // zero and it will be converted to string '0'
         $this->assertTrue(IntegerKeyTestEnum::has(0));
-        $this->assertSame($zero, IntegerKeyTestEnum::named(0));
+        $this->assertEquals($zero, IntegerKeyTestEnum::named(0));
         $this->assertTrue(IntegerKeyTestEnum::has(0.0));
-        $this->assertSame($zero, IntegerKeyTestEnum::named(0.0));
+        $this->assertEquals($zero, IntegerKeyTestEnum::named(0.0));
         // nameOf should work with all representations
         $this->assertSame('0', IntegerKeyTestEnum::nameOf($zero));
         $this->assertSame('0', IntegerKeyTestEnum::nameOf('0'));
@@ -264,5 +279,15 @@ class EnumTest extends TestCase
         $this->assertNull(IntegerKeyTestEnum::maybeNamed(''));
         $this->assertNull(IntegerKeyTestEnum::maybeNamed(null));
         $this->assertNull(IntegerKeyTestEnum::maybeNamed(false));
+    }
+
+    public function testCloneBehaviour()
+    {
+        $apple = Fruit::apple();
+        $apple1 = clone $apple;
+        $this->assertInstanceOf(Fruit::class, $apple1);
+        $this->assertEquals(json_encode($apple), json_encode($apple1));
+        $this->assertEquals($apple, $apple1);
+        $this->assertNotSame($apple, $apple1);
     }
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace MadisonSolutions\Enum;
 
 use JsonSerializable;
+use Serializable;
+use UnexpectedValueException;
 
 /**
  * The Abstract Enum class
@@ -12,7 +14,7 @@ use JsonSerializable;
  * extends from this Enum class.  Child classes must implement the
  * definitions() method to define the members of the Enum.
  */
-abstract class Enum implements JsonSerializable
+abstract class Enum implements JsonSerializable, Serializable
 {
     /**
      * Get the definitions for this Enum
@@ -23,12 +25,44 @@ abstract class Enum implements JsonSerializable
     abstract public static function definitions() : array;
 
     /**
-     * Cache loaded Enums for performance
+     * Cache loaded Enum data for performance
      *
      * @var array
      */
     private static $cache = [];
 
+    /**
+     * Initialize the current (static) Enum class
+     *
+     * Calls the static::definitions() function to load the definitions and
+     * saves them to a central cache for efficient access.
+     *
+     * This must be called before any attempt to access members or member data.
+     *
+     * @throws UnexpectedValueException If the Enum class tries to define a
+     *         member with an empty name (array key in the definition is '')
+     */
+    final private static function init()
+    {
+        if (! isset(Enum::$cache[static::class])) {
+            $defns = static::definitions();
+            if (array_key_exists('', $defns)) {
+                throw new UnexpectedValueException("Cannot define Enum with name = '' in class " . static::class);
+            }
+            Enum::$cache[static::class] = $defns;
+        }
+    }
+
+    /**
+     * Get the names of members of this Enum in an array
+     *
+     * @return array The names of the members of the enum (strings)
+     */
+    public static function names() : array
+    {
+        static::init();
+        return array_keys(Enum::$cache[static::class]);
+    }
 
     /**
      * Get all the members of this enum in an array
@@ -38,17 +72,11 @@ abstract class Enum implements JsonSerializable
      */
     public static function members() : array
     {
-        $called_class = get_called_class();
-        if (! isset(Enum::$cache[$called_class])) {
-            Enum::$cache[$called_class] = [];
-            foreach (static::definitions() as $name => $data) {
-                if ($name === '') {
-                    throw new \Exception("Cannot create Enum with name = ''");
-                }
-                Enum::$cache[$called_class][$name] = new static((string) $name, $data);
-            }
+        $members = [];
+        foreach (static::names() as $name) {
+            $members[$name] = new static($name);
         }
-        return Enum::$cache[$called_class];
+        return $members;
     }
 
     /**
@@ -74,7 +102,8 @@ abstract class Enum implements JsonSerializable
      */
     public static function has(?string $name) : bool
     {
-        return array_key_exists($name, static::members());
+        static::init();
+        return array_key_exists($name, Enum::$cache[static::class]);
     }
 
     /**
@@ -87,11 +116,11 @@ abstract class Enum implements JsonSerializable
      */
     public static function named(string $name)
     {
-        $members = static::members();
-        if (!array_key_exists($name, $members)) {
-            throw new \UnexpectedValueException("Enum ".get_called_class()." has no member $name");
+        $instance = static::maybeNamed($name);
+        if (! $instance) {
+            throw new UnexpectedValueException("Enum " . static::class . " has no member $name");
         }
-        return $members[$name];
+        return $instance;
     }
 
     /**
@@ -105,7 +134,7 @@ abstract class Enum implements JsonSerializable
      */
     public static function maybeNamed(?string $name)
     {
-        return @static::members()[$name];
+        return static::has($name) ? new static($name) : null;
     }
 
     /**
@@ -154,8 +183,8 @@ abstract class Enum implements JsonSerializable
      */
     public static function randomMember()
     {
-        $members = array_values(static::members());
-        return $members[rand(0, count($members) - 1)];
+        $names = static::names();
+        return new static($names[rand(0, count($names) - 1)]);
     }
 
     /**
@@ -166,22 +195,13 @@ abstract class Enum implements JsonSerializable
     protected $name;
 
     /**
-     * Data associated with the member
-     *
-     * @var array
-     */
-    protected $data;
-
-    /**
      * Create an instance of an Enum class
      *
      * @param string $name The name of the member
-     * @param array $data Arbitrary data associated with the member
      */
-    protected function __construct(string $name, array $data)
+    final private function __construct(string $name)
     {
         $this->name = $name;
-        $this->data = $data;
     }
 
     /**
@@ -193,7 +213,7 @@ abstract class Enum implements JsonSerializable
         if ($key == 'name') {
             return $this->name;
         }
-        return @$this->data[$key];
+        return Enum::$cache[get_class($this)][$this->name][$key] ?? null;
     }
 
     /**
@@ -205,6 +225,14 @@ abstract class Enum implements JsonSerializable
     }
 
     /**
+     * Data properties cannot be unset on instances - must be in definitions
+     */
+    public function __unset($key)
+    {
+        throw new \Exception("Cannot remove data from Enum instance");
+    }
+
+    /**
      * Unrecognised properties are assumed to be found in the member's internal
      * associated data.
      */
@@ -213,7 +241,7 @@ abstract class Enum implements JsonSerializable
         if ($key == 'name') {
             return true;
         }
-        return array_key_exists($key, $this->data);
+        return array_key_exists($key, Enum::$cache[get_class($this)][$this->name]);
     }
 
     /**
@@ -233,7 +261,7 @@ abstract class Enum implements JsonSerializable
     {
         return [
             'name' => $this->name,
-        ] + $this->data;
+        ] + Enum::$cache[get_class($this)][$this->name];
     }
 
     /**
@@ -244,5 +272,16 @@ abstract class Enum implements JsonSerializable
     public function jsonSerialize()
     {
         return $this->toArray();
+    }
+
+    public function serialize()
+    {
+        return $this->name;
+    }
+
+    public function unserialize($name)
+    {
+        $instance = static::named($name);
+        $this->name = $instance->name;
     }
 }
